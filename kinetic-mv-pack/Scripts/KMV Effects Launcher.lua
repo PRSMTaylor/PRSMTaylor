@@ -122,20 +122,23 @@ local function buildComp(dir, name, mode, v)
     for k in inner:gmatch("\n\t\t\t\t%w+ = (%w+) {") do kinds[#kinds + 1] = k end
     print("KMV: " .. name .. " " .. mode .. " <- KMV " .. name .. " " .. mode .. ".setting [" .. table.concat(kinds, ",") .. "]")
 
+    local plain = inner
     local si = inner:find("Src = Transform {", 1, true)
     local ii = si and inner:find("Inputs = {\n", si, true)
     if not ii then return nil, "source tool missing" end
     local ie = ii + #"Inputs = {\n" - 1
     inner = inner:sub(1, ie) .. '\t\t\t\t\t\tInput = Input { SourceOp = "MediaIn1", Source = "Output", },\n' .. inner:sub(ie + 1)
 
-    return table.concat({
+    local paste = "{\n\tTools = ordered() {\n" .. plain .. "\n\t}\n}\n"
+    local comp = table.concat({
         "{\n\tTools = ordered() {\n",
         "\t\t\t\tMediaIn1 = MediaIn {\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { -110, 0 } },\n\t\t\t\t},\n",
         inner, "\n",
         "\t\t\t\tMediaOut1 = MediaOut {\n\t\t\t\t\tInputs = {\n\t\t\t\t\t\tIndex = Input { Value = \"0\", },\n",
         "\t\t\t\t\t\tInput = Input { SourceOp = \"", last, "\", Source = \"Output\", },\n",
         "\t\t\t\t\t},\n\t\t\t\t\tViewInfo = OperatorInfo { Pos = { 1500, 0 } },\n\t\t\t\t},\n",
-        "\t}\n}\n" }), nil
+        "\t},\n\tActiveTool = \"MediaOut1\"\n}\n" })
+    return comp, nil, paste, last
 end
 
 local function fpsOf(timeline)
@@ -170,11 +173,37 @@ local function insertClip(timeline)
     return nil
 end
 
-local function loadComp(item, path)
+local function loadComp(item, path, paste, lastTool)
     local ok, res = pcall(function() return item:ImportFusionComp(path) end)
-    return ok and res and true or false
-end
+    print("KMV: ImportFusionComp ->", ok, tostring(res))
+    if ok and res then return true, "ImportFusionComp" end
 
+    -- fallback: new comp on the clip, paste the effect tools, wire MediaIn/MediaOut by hand
+    local okA, comp = pcall(function() return item:AddFusionComp() end)
+    print("KMV: AddFusionComp ->", okA, tostring(comp))
+    if not (okA and comp) then
+        local okN, names = pcall(function() return item:GetFusionCompNameList() end)
+        if okN and type(names) == "table" and names[1] then
+            local okG, c2 = pcall(function() return item:GetFusionCompByIndex(1) end)
+            print("KMV: GetFusionCompByIndex(1) ->", okG, tostring(c2))
+            if okG and c2 then comp = c2 end
+        end
+    end
+    if not comp then return false, "no Fusion comp available on the clip" end
+    local okP, resP = pcall(function() return comp:Paste(paste) end)
+    print("KMV: comp:Paste ->", okP, tostring(resP))
+    if not okP then return false, "comp:Paste failed" end
+    local okW, errW = pcall(function()
+        local mi, mo = comp:FindTool("MediaIn1"), comp:FindTool("MediaOut1")
+        local src, tail = comp:FindTool("Src"), comp:FindTool(lastTool)
+        if not (src and tail) then error("pasted tools not found") end
+        if mi then src.Input = mi.Output end
+        if mo then mo.Input = tail.Output end
+    end)
+    print("KMV: wiring ->", okW, tostring(errW))
+    if not okW then return false, "pasted but wiring failed: " .. tostring(errW) end
+    return true, "AddFusionComp+Paste"
+end
 local function trackOf(item)
     local ok, r = pcall(function() return item:GetTrackTypeAndIndex() end)
     if ok and type(r) == "table" then return r[2] end
@@ -223,7 +252,7 @@ local function placeOne(timeline, entry, mode, v, p, dir, T, cache)
     local fps = fpsOf(timeline)
     local length = v.Length
     local base = tonumber(timeline:GetStartFrame()) or 0
-    local comp, err = buildComp(dir, entry[1], mode, v)
+    local comp, err, paste, lastTool = buildComp(dir, entry[1], mode, v)
     if not comp then return mode .. ": " .. err end
     local path = tmpDir() .. sep .. "KMV_" .. entry[1]:gsub(" ", "_") .. "_" .. mode .. ".comp"
     local fh = io.open(path, "wb")
@@ -292,10 +321,11 @@ local function placeOne(timeline, entry, mode, v, p, dir, T, cache)
     elseif not landed then
         note = " (could not verify track)"
     end
-    if loadComp(item, path) then
-        return mode .. ": clip on V" .. tostring(landed or T) .. " - select it to trim/adjust." .. note
+    local loaded, how = loadComp(item, path, paste, lastTool)
+    if loaded then
+        return mode .. ": clip on V" .. tostring(landed or T) .. " (loaded via " .. how .. ") - select it to trim/adjust." .. note
     end
-    return mode .. ": clip inserted on V" .. tostring(landed or T) .. note .. " but loading the effect failed. Use Fusion > Import Composition: " .. path
+    return mode .. ": clip inserted on V" .. tostring(landed or T) .. note .. " but loading the effect failed (" .. tostring(how) .. "; see Console). Use Fusion > Import Composition: " .. path
 end
 
 local function applyEffect(entry, modes, v, setStatus)
