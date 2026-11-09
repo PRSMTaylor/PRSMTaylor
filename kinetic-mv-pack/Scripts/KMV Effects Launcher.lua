@@ -219,6 +219,7 @@ local function applyEffect(entry, modes, v, setStatus)
     setStatus(table.concat(msgs, "\n"))
 end
 
+local function buildUI()
 local win = disp:AddWindow({
     ID = "KMVWin", WindowTitle = "KMV Effects Launcher", Geometry = { 200, 150, 640, 640 },
     ui:VGroup {
@@ -272,14 +273,15 @@ local function rebuildList()
             visible[#visible + 1] = e
         end
     end
-    if #visible > 0 then itm.List:SetCurrentItem(itm.List:TopLevelItem(0)) end
+    if #visible > 0 then itm.List.CurrentItem = itm.List:TopLevelItem(0) end
 end
 
 local function current()
-    local it = itm.List:CurrentItem()
+    local it = itm.List.CurrentItem
     if not it then return nil end
-    local idx = itm.List:IndexOfTopLevelItem(it)
-    return visible[idx + 1]
+    local name = (it.Text[0] or ""):gsub("^%* ", "")
+    for _, e in ipairs(visible) do if e[1] == name then return e end end
+    return nil
 end
 
 local function refresh()
@@ -341,3 +343,7 @@ refresh()
 win:Show()
 disp:RunLoop()
 win:Hide()
+end
+
+local okUI, errUI = pcall(buildUI)
+if not okUI then print("KMV launcher error: " .. tostring(errUI)) end
