@@ -18,7 +18,7 @@ START, END = "comp.RenderStart", "comp.RenderEnd"
 # name: (default, min, max, label, integer)
 CONTROLS = {
     "Intensity": (1.0, 0.0, 2.0, "Intensity", False),
-    "Length": (12, 1, 120, "Length (frames)", True),
+    "Length": (8, 1, 30, "Length (frames)", True),
     "Count": (6, 1, 30, "Strobe Count", True),
     "Duty": (0.5, 0.05, 0.95, "Strobe On-Time", False),
     "Fade": (0.0, 0.0, 1.0, "Strobe Fade-Out", False),
@@ -138,8 +138,17 @@ def ctl(kind, mode, controls, defaults):
     return Tool("Ctl", "Background", inputs, extra="\n".join(uc)), w
 
 
+LENGTHS = {"Flash": 4, "Color Flash": 4, "Glow Flash": 6, "Strobe Flash": 8, "Strobe Black": 8,
+           "Frame Stutter": 8, "Loop Stutter": 8, "Echo Stutter": 8, "Stutter Flash": 10,
+           "Pulse Stutter": 10, "Shake Y": 8, "Shake XY": 8, "Shake Twitch": 8, "Zoom In": 6,
+           "Zoom Pull": 6, "Zoom Blur": 6, "Slide Left": 6, "Slide Right": 6, "Slide Up": 6,
+           "Slide Down": 6, "Soft Blur": 6, "Defocus": 6, "Directional Blur": 6}
+
+
 def build(name, mode, kind, controls, tools_fn, defaults=None, rgb=False):
-    defaults = defaults or {}
+    defaults = dict(defaults or {})
+    defaults.setdefault("Length", LENGTHS.get(name, 8))
+    defaults.setdefault("Curve", 1)
     exposed = ["Length"] + [c for c in controls if c != "Length"] + COMMON
     allc = list(exposed)
     for c in REQUIRED[kind]:

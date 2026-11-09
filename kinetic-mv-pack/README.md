@@ -35,6 +35,8 @@ Honest limits (**untested in Resolve**; written from the scripting docs):
 - A plain Fusion Composition does not see the clips below it; the Adjustment Clip generator does. If only the Fusion Composition fallback is used, the effect will not affect underlying video.
 - Previews are text descriptions only; no thumbnails/animated previews.
 - Playhead handling assumes non-drop-frame timecode. Scripts run from Resolve's Scripts menu work in the free version; running scripts externally needs Resolve Studio.
+**Defaults are short and punchy** (about 4-10 frames; flashes 3-6, strobes/stutters 8-10) with a sharp curve by default (fast attack, quick decay). Length range is 1-30 frames. Only the three Shake presets shake; every other family uses its own node graph (flash = Merge/Glow, stutter = TimeStretcher, zoom/slide = Transform, blur = Blur/Defocus). The launcher prints which preset and tool types it loaded to Resolve's Console so you can confirm the right macro was used.
+
 ## Effects (23 × Pre/Post = 46 presets)
 
 | Group | Presets | Main controls |

@@ -45,6 +45,12 @@ local EFFECTS = {
     { "Slide Down", "MOTION", "Slides the picture down.", { "Amount" }, {} },
 }
 
+local LENGTHS = { ["Flash"] = 4, ["Color Flash"] = 4, ["Glow Flash"] = 6, ["Strobe Flash"] = 8, ["Strobe Black"] = 8,
+    ["Frame Stutter"] = 8, ["Loop Stutter"] = 8, ["Echo Stutter"] = 8, ["Stutter Flash"] = 10, ["Pulse Stutter"] = 10,
+    ["Shake Y"] = 8, ["Shake XY"] = 8, ["Shake Twitch"] = 8, ["Zoom In"] = 6, ["Zoom Pull"] = 6, ["Zoom Blur"] = 6,
+    ["Slide Left"] = 6, ["Slide Right"] = 6, ["Slide Up"] = 6, ["Slide Down"] = 6, ["Soft Blur"] = 6, ["Defocus"] = 6,
+    ["Directional Blur"] = 6 }
+
 local function fileExists(p)
     local f = io.open(p, "rb")
     if f then f:close() return true end
@@ -112,6 +118,9 @@ local function buildComp(dir, name, mode, v)
     local head, ctl = inner:sub(1, ci - 1), inner:sub(ci)
     for k, val in pairs(v) do ctl = setNumber(ctl, k, val) end
     inner = head .. ctl
+    local kinds = {}
+    for k in inner:gmatch("\n\t\t\t\t%w+ = (%w+) {") do kinds[#kinds + 1] = k end
+    print("KMV: " .. name .. " " .. mode .. " <- KMV " .. name .. " " .. mode .. ".setting [" .. table.concat(kinds, ",") .. "]")
 
     local si = inner:find("Src = Transform {", 1, true)
     local ii = si and inner:find("Inputs = {\n", si, true)
@@ -320,13 +329,13 @@ local win = disp:AddWindow({
         ui:Tree { ID = "List", Weight = 1, HeaderHidden = true, SortingEnabled = false },
         ui:Label { ID = "Desc", WordWrap = true, Weight = 0, Text = "" },
         ui:Button { ID = "Fav", Text = "Favourite", Weight = 0 },
-        ui:HGroup { Weight = 0, ui:Label { Text = "Length (frames)" }, ui:SpinBox { ID = "Length", Minimum = 1, Maximum = 120, Value = 12 } },
+        ui:HGroup { Weight = 0, ui:Label { Text = "Length (frames)" }, ui:SpinBox { ID = "Length", Minimum = 1, Maximum = 30, Value = 8 } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Intensity %" }, ui:SpinBox { ID = "Intensity", Minimum = 0, Maximum = 200, Value = 100 } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Strobe / stutter count" }, ui:SpinBox { ID = "Count", Minimum = 1, Maximum = 30, Value = 6 } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Hold / loop / echo frames" }, ui:SpinBox { ID = "Frames", Minimum = 1, Maximum = 24, Value = 3 } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Amount %" }, ui:SpinBox { ID = "Amount", Minimum = 0, Maximum = 300, Value = 100 } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Speed %" }, ui:SpinBox { ID = "Speed", Minimum = 10, Maximum = 500, Value = 100 } },
-        ui:HGroup { Weight = 0, ui:Label { Text = "Curve" }, ui:ComboBox { ID = "Curve" },
+        ui:HGroup { Weight = 0, ui:Label { Text = "Curve" }, ui:ComboBox { ID = "Curve", CurrentIndex = 1 },
             ui:Label { Text = "Seed" }, ui:SpinBox { ID = "Seed", Minimum = 0, Maximum = 999, Value = 1 },
             ui:Button { ID = "Rand", Text = "Randomize" } },
         ui:HGroup { Weight = 0, ui:Label { Text = "Motion blur %" }, ui:SpinBox { ID = "MB", Minimum = 0, Maximum = 200, Value = 0 },
@@ -345,6 +354,7 @@ itm.Filter:AddItem("EFFECTS")
 itm.Filter:AddItem("MOTION")
 itm.Filter:AddItem("FAVS")
 for _, c in ipairs({ "Smooth", "Sharp", "S", "Linear" }) do itm.Curve:AddItem(c) end
+pcall(function() itm.Curve.CurrentIndex = 1 end)
 
 local visible = {}
 local function setStatus(t) itm.Status.Text = t end
@@ -395,6 +405,7 @@ local function refresh()
     for _, k in ipairs({ "Intensity", "Count", "Frames", "Amount", "Speed" }) do
         itm[k].Enabled = has[k] or false
     end
+    itm.Length.Value = LENGTHS[e[1]] or 8
     local d = e[5]
     itm.Intensity.Value = d.Intensity or 100
     itm.Count.Value = d.Count or 6
