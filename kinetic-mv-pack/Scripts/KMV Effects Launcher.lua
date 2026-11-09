@@ -273,13 +273,24 @@ local function rebuildList()
             visible[#visible + 1] = e
         end
     end
-    if #visible > 0 then itm.List.CurrentItem = itm.List:TopLevelItem(0) end
+    if #visible > 0 then
+        local okF, first = pcall(function() return itm.List:TopLevelItem(0) end)
+        if okF and first then
+            pcall(function() first.Selected = true end)
+            pcall(function() itm.List.CurrentItem = first end)
+        end
+    end
 end
 
 local function current()
     local it = itm.List.CurrentItem
+    if type(it) == "function" then
+        local ok, r = pcall(function() return itm.List:CurrentItem() end)
+        it = ok and r or nil
+    end
     if not it then return nil end
-    local name = (it.Text[0] or ""):gsub("^%* ", "")
+    local okT, txt = pcall(function() return it.Text[0] end)
+    local name = tostring(okT and txt or ""):gsub("^%* ", "")
     for _, e in ipairs(visible) do if e[1] == name then return e end end
     return nil
 end
