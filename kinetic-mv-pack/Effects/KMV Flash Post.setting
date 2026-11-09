@@ -1,0 +1,65 @@
+{
+	Tools = ordered() {
+		KMV_Flash_Post = MacroOperator {
+			CtrlWZoom = false,
+			Inputs = ordered() {
+				MainInput1 = InstanceInput { SourceOp = "Src", Source = "Input", },
+				Length = InstanceInput { SourceOp = "Ctl", Source = "Length", Default = 12, },
+				Intensity = InstanceInput { SourceOp = "Ctl", Source = "Intensity", Default = 1.0, },
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput { SourceOp = "Fx", Source = "Output", },
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Src = Transform {
+					CtrlWZoom = false,
+					Inputs = {
+						Size = Input { Value = 1.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+				Col = Background {
+					CtrlWZoom = false,
+					Inputs = {
+						UseFrameFormatSettings = Input { Value = 1, },
+						TopLeftRed = Input { Value = 1, },
+						TopLeftGreen = Input { Value = 1, },
+						TopLeftBlue = Input { Value = 1, },
+						TopLeftAlpha = Input { Value = 1.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 0 } },
+				},
+				Fx = Merge {
+					CtrlWZoom = false,
+					Inputs = {
+						Background = Input { SourceOp = "Src", Source = "Output", },
+						Foreground = Input { SourceOp = "Col", Source = "Output", },
+						Blend = Input { Expression = "Ctl.Env", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, 0 } },
+				},
+				Ctl = Background {
+					CtrlWZoom = false,
+					Inputs = {
+						Width = Input { Value = 1920, },
+						Height = Input { Value = 1080, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						Active = Input { Expression = "iif((time-comp.RenderStart) < self.Length, 1, 0)", },
+						Env = Input { Expression = "iif((time-comp.RenderStart) < self.Length, self.Intensity*(1-(time-comp.RenderStart)/self.Length)^2, 0)", },
+						Length = Input { Value = 12, },
+						Intensity = Input { Value = 1.0, },
+					},
+				UserControls = ordered() {
+					Length = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 12, INP_MinScale = 1, INP_MaxScale = 120, INP_Integer = true, LINKS_Name = "Length (frames)", ICS_ControlPage = "Controls" },
+					Intensity = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1.0, INP_MinScale = 0.0, INP_MaxScale = 2.0, INP_Integer = false, LINKS_Name = "Intensity", ICS_ControlPage = "Controls" },
+					Active = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Active", ICS_ControlPage = "Controls", IC_Visible = false },
+					Env = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Env", ICS_ControlPage = "Controls", IC_Visible = false },
+				},
+					ViewInfo = OperatorInfo { Pos = { 330, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "KMV_Flash_Post"
+}

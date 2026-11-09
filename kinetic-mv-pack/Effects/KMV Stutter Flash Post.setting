@@ -1,0 +1,85 @@
+{
+	Tools = ordered() {
+		KMV_Stutter_Flash_Post = MacroOperator {
+			CtrlWZoom = false,
+			Inputs = ordered() {
+				MainInput1 = InstanceInput { SourceOp = "Src", Source = "Input", },
+				Length = InstanceInput { SourceOp = "Ctl", Source = "Length", Default = 12, },
+				Intensity = InstanceInput { SourceOp = "Ctl", Source = "Intensity", Default = 0.8, },
+				Count = InstanceInput { SourceOp = "Ctl", Source = "Count", Default = 4, },
+				Duty = InstanceInput { SourceOp = "Ctl", Source = "Duty", Default = 0.5, },
+				Fade = InstanceInput { SourceOp = "Ctl", Source = "Fade", Default = 0.0, },
+				Hold = InstanceInput { SourceOp = "Ctl", Source = "Hold", Default = 3, },
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput { SourceOp = "Flash", Source = "Output", },
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Src = Transform {
+					CtrlWZoom = false,
+					Inputs = {
+						Size = Input { Value = 1.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+				Fx = TimeStretcher {
+					CtrlWZoom = false,
+					Inputs = {
+						Input = Input { SourceOp = "Src", Source = "Output", },
+						SourceTime = Input { Expression = "iif(Ctl.Active>0, comp.RenderStart+floor((time-comp.RenderStart)/Ctl.Hold)*Ctl.Hold, time)", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 0 } },
+				},
+				Col = Background {
+					CtrlWZoom = false,
+					Inputs = {
+						UseFrameFormatSettings = Input { Value = 1, },
+						TopLeftRed = Input { Value = 1, },
+						TopLeftGreen = Input { Value = 1, },
+						TopLeftBlue = Input { Value = 1, },
+						TopLeftAlpha = Input { Value = 1.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, 0 } },
+				},
+				Flash = Merge {
+					CtrlWZoom = false,
+					Inputs = {
+						Background = Input { SourceOp = "Fx", Source = "Output", },
+						Foreground = Input { SourceOp = "Col", Source = "Output", },
+						Blend = Input { Expression = "Ctl.Env*0.8", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, 0 } },
+				},
+				Ctl = Background {
+					CtrlWZoom = false,
+					Inputs = {
+						Width = Input { Value = 1920, },
+						Height = Input { Value = 1080, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						Active = Input { Expression = "iif((time-comp.RenderStart) < self.Length, 1, 0)", },
+						Env = Input { Expression = "iif((time-comp.RenderStart) < self.Length and (((time-comp.RenderStart)/(self.Length/self.Count))-floor(((time-comp.RenderStart)/(self.Length/self.Count)))) < self.Duty, self.Intensity*(1-self.Fade*(time-comp.RenderStart)/self.Length), 0)", },
+						Length = Input { Value = 12, },
+						Intensity = Input { Value = 0.8, },
+						Count = Input { Value = 4, },
+						Duty = Input { Value = 0.5, },
+						Fade = Input { Value = 0.0, },
+						Hold = Input { Value = 3, },
+					},
+				UserControls = ordered() {
+					Length = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 12, INP_MinScale = 1, INP_MaxScale = 120, INP_Integer = true, LINKS_Name = "Length (frames)", ICS_ControlPage = "Controls" },
+					Intensity = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0.8, INP_MinScale = 0.0, INP_MaxScale = 2.0, INP_Integer = false, LINKS_Name = "Intensity", ICS_ControlPage = "Controls" },
+					Count = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 4, INP_MinScale = 1, INP_MaxScale = 30, INP_Integer = true, LINKS_Name = "Strobe Count", ICS_ControlPage = "Controls" },
+					Duty = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0.5, INP_MinScale = 0.05, INP_MaxScale = 0.95, INP_Integer = false, LINKS_Name = "Strobe On-Time", ICS_ControlPage = "Controls" },
+					Fade = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0.0, INP_MinScale = 0.0, INP_MaxScale = 1.0, INP_Integer = false, LINKS_Name = "Strobe Fade-Out", ICS_ControlPage = "Controls" },
+					Hold = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 3, INP_MinScale = 1, INP_MaxScale = 24, INP_Integer = true, LINKS_Name = "Hold / Loop (frames)", ICS_ControlPage = "Controls" },
+					Active = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Active", ICS_ControlPage = "Controls", IC_Visible = false },
+					Env = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Env", ICS_ControlPage = "Controls", IC_Visible = false },
+				},
+					ViewInfo = OperatorInfo { Pos = { 440, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "KMV_Stutter_Flash_Post"
+}
