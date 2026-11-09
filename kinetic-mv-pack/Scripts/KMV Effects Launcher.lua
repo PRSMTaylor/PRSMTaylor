@@ -163,13 +163,57 @@ end
 
 local function loadComp(item, path)
     local ok, res = pcall(function() return item:ImportFusionComp(path) end)
-    if ok and res then return true end
-    local ok2, res2 = pcall(function() return item:AddFusionComp() end)
-    return false
+    return ok and res and true or false
 end
 
-local function placeOne(timeline, entry, mode, v, p, dir)
+local function trackOf(item)
+    local ok, r = pcall(function() return item:GetTrackTypeAndIndex() end)
+    if ok and type(r) == "table" then return r[2] end
+    return nil
+end
+
+-- Resolve inserts on the targeted track; the API has no target setter, so lock every other
+-- video track while inserting, then restore the previous lock states.
+local function insertOnTrack(timeline, T)
+    local count = timeline:GetTrackCount("video")
+    local was = {}
+    for i = 1, count do
+        if i ~= T then
+            local ok, locked = pcall(function() return timeline:GetIsTrackLocked("video", i) end)
+            was[i] = ok and locked or false
+            pcall(function() timeline:SetTrackLock("video", i, true) end)
+        end
+    end
+    local item = insertClip(timeline)
+    for i, locked in pairs(was) do
+        pcall(function() timeline:SetTrackLock("video", i, locked) end)
+    end
+    return item
+end
+
+local function deleteItem(timeline, item)
+    return pcall(function() return timeline:DeleteClips({ item }, false) end)
+end
+
+-- Picks the video track for the effect clips: reuse the top track if empty around the cut,
+-- else add a new one above everything. Never moves existing clips.
+local function ensureTopTrack(timeline, lo, hi)
+    local top = timeline:GetTrackCount("video")
+    local busy = false
+    for _, it in ipairs(timeline:GetItemListInTrack("video", top) or {}) do
+        if it:GetStart() < hi and it:GetEnd() > lo then busy = true break end
+    end
+    if not busy and top > 1 then return top, false end
+    local ok = pcall(function() return timeline:AddTrack("video") end)
+    local n = timeline:GetTrackCount("video")
+    if ok and n > top then return n, true end
+    return nil
+end
+
+local function placeOne(timeline, entry, mode, v, p, dir, T, cache)
     local fps = fpsOf(timeline)
+    local length = v.Length
+    local base = tonumber(timeline:GetStartFrame()) or 0
     local comp, err = buildComp(dir, entry[1], mode, v)
     if not comp then return mode .. ": " .. err end
     local path = tmpDir() .. sep .. "KMV_" .. entry[1]:gsub(" ", "_") .. "_" .. mode .. ".comp"
@@ -179,29 +223,70 @@ local function placeOne(timeline, entry, mode, v, p, dir)
     fh:close()
 
     local playhead = timeline:GetCurrentTimecode()
-    timeline:SetCurrentTimecode(framesToTc(p, fps))
-    local item = insertClip(timeline)
-    if not item then
-        timeline:SetCurrentTimecode(playhead)
-        return mode .. ": this Resolve could not insert an adjustment clip via the API. Add an Adjustment Clip on the track above manually, then on the Fusion page choose Fusion > Import Composition: " .. path
+    local rec = (mode == "Post") and p or math.max(base, p - length)
+    local item
+
+    -- Method B: append a media pool item with exact length and track (once we have one)
+    local function appendExact()
+        if not cache.mpi then return nil end
+        local ok, res = pcall(function()
+            return resolve:GetProjectManager():GetCurrentProject():GetMediaPool():AppendToTimeline({ {
+                mediaPoolItem = cache.mpi, startFrame = 0, endFrame = length - 1,
+                trackIndex = T, recordFrame = rec, mediaType = 1 } })
+        end)
+        if ok and type(res) == "table" and res[1] then return res[1] end
+        return nil
     end
-    if mode == "Pre" then
-        -- shift the clip so it ends at the cut instead of starting there
-        local dur = item:GetDuration()
-        local okDel = pcall(function() return timeline:DeleteClips({ item }, false) end)
-        local start = math.max(0, p - dur)
-        timeline:SetCurrentTimecode(framesToTc(start, fps))
-        item = insertClip(timeline)
+
+    item = appendExact()
+    if not item then
+        timeline:SetCurrentTimecode(framesToTc(rec, fps))
+        item = insertOnTrack(timeline, T)
         if not item then
             timeline:SetCurrentTimecode(playhead)
-            return mode .. ": re-insert failed (" .. (okDel and "clip removed" or "old clip kept") .. ")"
+            return mode .. ": the API could not insert an adjustment clip. Add one on the new track manually, then on the Fusion page use Fusion > Import Composition: " .. path
+        end
+        if mode == "Pre" then
+            local dur = item:GetDuration()
+            local want = math.max(base, p - dur)
+            if dur and want ~= rec then
+                deleteItem(timeline, item)
+                timeline:SetCurrentTimecode(framesToTc(want, fps))
+                item = insertOnTrack(timeline, T)
+            end
+        end
+        -- try to swap for an exact-length clip when a pool item is obtainable
+        if item and not cache.mpi then
+            local okM, mpi = pcall(function() return item:GetMediaPoolItem() end)
+            if okM and mpi then cache.mpi = mpi end
+        end
+        if item and cache.mpi and not cache.triedExact then
+            cache.triedExact = true
+            local keepStart = item:GetStart()
+            deleteItem(timeline, item)
+            local exact = appendExact()
+            if exact then
+                item = exact
+            else
+                timeline:SetCurrentTimecode(framesToTc(keepStart, fps))
+                item = insertOnTrack(timeline, T)
+            end
         end
     end
     timeline:SetCurrentTimecode(playhead)
-    if loadComp(item, path) then
-        return mode .. ": inserted '" .. tostring(item:GetName()) .. "' - select it to adjust/trim; controls are in the Fusion page / Inspector."
+    if not item then return mode .. ": insertion failed." end
+
+    local landed = trackOf(item)
+    local note = ""
+    if landed and landed ~= T then
+        note = " WARNING: landed on V" .. landed .. ", expected V" .. T .. "."
+    elseif not landed then
+        note = " (could not verify track)"
     end
-    return mode .. ": clip inserted but loading the effect failed. On the Fusion page use Fusion > Import Composition: " .. path
+    if loadComp(item, path) then
+        return mode .. ": clip on V" .. tostring(landed or T) .. " - select it to trim/adjust." .. note
+    end
+    return mode .. ": clip inserted on V" .. tostring(landed or T) .. note .. " but loading the effect failed. Use Fusion > Import Composition: " .. path
 end
 
 local function applyEffect(entry, modes, v, setStatus)
@@ -212,11 +297,16 @@ local function applyEffect(entry, modes, v, setStatus)
     if not p then return setStatus("Could not read playhead timecode.") end
     local dir = effectsDir()
     if not dir then return setStatus("KMV presets not found. Run the installer and restart Resolve.") end
-    local msgs = {}
+    local T, added = ensureTopTrack(timeline, p - v.Length, p + v.Length)
+    if not T then return setStatus("Could not find or add a free video track above the clips (AddTrack failed). Add one manually and retry.") end
+    local msgs = { (added and "Added track V" or "Using empty top track V") .. T }
+    local cache = {}
     for _, mode in ipairs(modes) do
-        msgs[#msgs + 1] = placeOne(timeline, entry, mode, v, p, dir)
+        msgs[#msgs + 1] = placeOne(timeline, entry, mode, v, p, dir, T, cache)
     end
-    setStatus(table.concat(msgs, "\n"))
+    local out = table.concat(msgs, "\n")
+    print("KMV: " .. out)
+    setStatus(out)
 end
 
 local function buildUI()
