@@ -28,7 +28,13 @@ CONTROLS = {
     "Speed": (1.0, 0.1, 5.0, "Speed", False),
     "Amount": (1.0, 0.0, 3.0, "Amount", False),
     "Angle": (0.0, -180.0, 180.0, "Angle", False),
+    "Strength": (1.0, 0.0, 3.0, "Strength", False),
+    "Curve": (0, 0, 3, "Curve (0 Smooth, 1 Sharp, 2 S, 3 Linear)", True),
+    "Seed": (1, 0, 999, "Random Seed (0 = fixed)", True),
+    "MotionBlur": (0.0, 0.0, 2.0, "Motion Blur", False),
+    "Brightness": (0.0, -1.0, 2.0, "Brightness", False),
 }
+COMMON = ["Strength", "Curve", "Seed", "MotionBlur", "Brightness"]
 REQUIRED = {
     "decay": ["Intensity"],
     "hold": ["Intensity"],
@@ -102,14 +108,17 @@ def ctl(kind, mode, controls, defaults):
     d = "(time-%s)" % START if mode == "Post" else "(%s-time)" % END
     w = START if mode == "Post" else "(%s-Ctl.Length)" % END
     active = "iif(%s < self.Length, 1, 0)" % d
+    u = "(1-%s/self.Length)" % d
+    shape = ("iif(self.Curve==1, %s^4, iif(self.Curve==2, %s*%s*(3-2*%s), iif(self.Curve==3, %s, %s^2)))"
+             % (u, u, u, u, u, u))
     if kind == "decay":
-        env = "iif(%s < self.Length, self.Intensity*(1-%s/self.Length)^2, 0)" % (d, d)
+        env = "iif(%s < self.Length, self.Intensity*self.Strength*%s, 0)" % (d, shape)
     elif kind == "hold":
-        env = "iif(%s < self.Length, self.Intensity, 0)" % d
+        env = "iif(%s < self.Length, self.Intensity*self.Strength, 0)" % d
     else:
         cyc = "(%s/(self.Length/self.Count))" % d
         env = ("iif(%s < self.Length and (%s-floor(%s)) < self.Duty, "
-               "self.Intensity*(1-self.Fade*%s/self.Length), 0)" % (d, cyc, cyc, d))
+               "self.Intensity*self.Strength*(1-self.Fade*%s/self.Length), 0)" % (d, cyc, cyc, d))
     inputs = {"Width": 1920, "Height": 1080, "UseFrameFormatSettings": 1,
               "Active": E(active), "Env": E(env)}
     uc = ["\t\t\t\tUserControls = ordered() {"]
@@ -131,14 +140,22 @@ def ctl(kind, mode, controls, defaults):
 
 def build(name, mode, kind, controls, tools_fn, defaults=None, rgb=False):
     defaults = defaults or {}
-    exposed = ["Length"] + [c for c in controls if c != "Length"]
+    exposed = ["Length"] + [c for c in controls if c != "Length"] + COMMON
     allc = list(exposed)
     for c in REQUIRED[kind]:
         if c not in allc:
             allc.append(c)
     c, w = ctl(kind, mode, allc, defaults)
-    tools = [src()] + tools_fn(mode) + [c]
-    last = [t for t in tools if t.name != "Ctl"][-1].name
+    chain = tools_fn(mode)
+    prev = chain[-1].name
+    post = [
+        Tool("Bri", "BrightnessContrast", {"Input": link(prev),
+             "Gain": E("1+Ctl.Brightness*Ctl.Active")}),
+        Tool("MB", "DirectionalBlur", {"Input": link("Bri"), "Type": 0,
+             "Length": E("Ctl.MotionBlur*Ctl.Env*0.1"), "Angle": 0.0}),
+    ]
+    tools = [src()] + chain + post + [c]
+    last = "MB"
     for t in tools:
         for k, v in list(t.inputs.items()):
             if isinstance(v, dict) and "expr" in v:
@@ -230,8 +247,8 @@ def shake(kind):
             cy = "0.5+%s*sin(%s*2.7+1)" % (amp, t)
             ang = "Ctl.Env*Ctl.Amount*0.8*sin(%s*1.3)" % t
         else:
-            r1 = "sin(floor(time*Ctl.Speed/2)*12.9898)*43758.5453"
-            r2 = "sin(floor(time*Ctl.Speed/2)*78.233)*12345.6789"
+            r1 = "sin((floor(time*Ctl.Speed/2)+Ctl.Seed)*12.9898)*43758.5453"
+            r2 = "sin((floor(time*Ctl.Speed/2)+Ctl.Seed)*78.233)*12345.6789"
             cx = "0.5+%s*2*((%s)-floor(%s)-0.5)" % (amp, r1, r1)
             cy = "0.5+%s*2*((%s)-floor(%s)-0.5)" % (amp, r2, r2)
             ang = "Ctl.Env*Ctl.Amount*0.8*sin(%s*1.3)" % t

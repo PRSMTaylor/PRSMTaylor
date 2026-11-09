@@ -25,17 +25,16 @@ The window is set by the **Length (frames)** slider and measured from the clip's
 
 ## Launcher script (Workspace > Scripts > Edit > KMV Effects Launcher)
 
-A one-click window: park the playhead on a cut, pick an effect from the list (with a short description), set Length, Intensity, Strobe/stutter count, Hold/echo frames, Amount and Speed, choose **Both / Pre only / Post only**, and press **Apply**.
+A browser window: **search** the effect list, filter **ALL / EFFECTS / MOTION / FAVS**, toggle **Favourite** (saved to `KMV_favourites.txt` in your AppData / Library folder), read the description, set Length, Intensity, Strobe/stutter count, Hold/echo frames, Amount, Speed, **Curve** (Smooth/Sharp/S/Linear), **Seed/Randomize**, Motion blur and Brightness, then press **PRE**, **BOTH** or **POST**.
 
-How it works: it finds the clip ending (Pre) and/or starting (Post) at the playhead, builds a Fusion `.comp` from the installed preset with your values, and imports it onto the clip via `TimelineItem:ImportFusionComp()`. The applied effect appears as a Fusion comp on that clip (Fusion page, where all controls remain editable).
+Each press inserts an **adjustment-style clip at the playhead** and loads the KMV effect into its Fusion comp, so you can select it, trim/stretch it and keep adjusting afterwards. PRE clips end at the playhead, POST clips start at it. The same controls (Strength, Curve, Seed, Motion Blur, Brightness, plus effect-specific ones) are also on every preset in the Effects panel.
 
-Honest limits (untested without Resolve):
-- The Resolve API cannot apply Edit-page effect presets directly, so the Fusion-comp import above is used. If `ImportFusionComp` fails or is missing, the script tells you and leaves the `.comp` in your temp folder to import manually.
-- It is a Lua script run from Resolve's own Scripts menu; this works in the free version. Running scripts *externally* (outside Resolve) needs Resolve Studio, but this launcher does not need that.
-- Playhead matching assumes non-drop-frame timecode and checks video tracks top to bottom; the clip edge must be within 1 frame of the playhead.
-- No preview images/GIFs are included; descriptions are text only.
-- It imports a new Fusion comp, which may replace or add to an existing comp on that clip depending on your Resolve version.
-
+Honest limits (**untested in Resolve**; written from the scripting docs):
+- API calls are tried in order: `Timeline:InsertGeneratorIntoTimeline("Adjustment Clip")`, `InsertFusionGeneratorIntoTimeline`, `InsertFusionCompositionIntoTimeline`, then `TimelineItem:ImportFusionComp()`. If one is unavailable the status line says what to do manually (a `.comp` file is left in your temp folder).
+- The API cannot choose the destination track or set clip length. Resolve inserts on the currently targeted video track, so **target/enable the track above your clips (e.g. V2) first**. Inserted clips use Resolve's default generator length; trim them. The effect window itself stays `Length` frames at the clip's start (POST) or end (PRE).
+- A plain Fusion Composition does not see the clips below it; the Adjustment Clip generator does. If only the Fusion Composition fallback is used, the effect will not affect underlying video.
+- Previews are text descriptions only; no thumbnails/animated previews.
+- Playhead handling assumes non-drop-frame timecode. Scripts run from Resolve's Scripts menu work in the free version; running scripts externally needs Resolve Studio.
 ## Effects (23 × Pre/Post = 46 presets)
 
 | Group | Presets | Main controls |
