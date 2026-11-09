@@ -1,0 +1,88 @@
+{
+	Tools = ordered() {
+		KMV_Defocus_Post = MacroOperator {
+			CtrlWZoom = false,
+			Inputs = ordered() {
+				MainInput1 = InstanceInput { SourceOp = "Src", Source = "Input", },
+				Length = InstanceInput { SourceOp = "Ctl", Source = "Length", Default = 6, },
+				Amount = InstanceInput { SourceOp = "Ctl", Source = "Amount", Default = 1.0, },
+				Strength = InstanceInput { SourceOp = "Ctl", Source = "Strength", Default = 1.0, },
+				Curve = InstanceInput { SourceOp = "Ctl", Source = "Curve", Default = 1, },
+				Seed = InstanceInput { SourceOp = "Ctl", Source = "Seed", Default = 1, },
+				MotionBlur = InstanceInput { SourceOp = "Ctl", Source = "MotionBlur", Default = 0.0, },
+				Brightness = InstanceInput { SourceOp = "Ctl", Source = "Brightness", Default = 0.0, },
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput { SourceOp = "MB", Source = "Output", },
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Src = Transform {
+					CtrlWZoom = false,
+					Inputs = {
+						Size = Input { Value = 1.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+				Fx = Defocus {
+					CtrlWZoom = false,
+					Inputs = {
+						Input = Input { SourceOp = "Src", Source = "Output", },
+						DefocusSize = Input { Expression = "Ctl.Env*Ctl.Amount*40", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 110, 0 } },
+				},
+				Bri = BrightnessContrast {
+					CtrlWZoom = false,
+					Inputs = {
+						Input = Input { SourceOp = "Fx", Source = "Output", },
+						Gain = Input { Expression = "1+Ctl.Brightness*Ctl.Active", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 220, 0 } },
+				},
+				MB = DirectionalBlur {
+					CtrlWZoom = false,
+					Inputs = {
+						Input = Input { SourceOp = "Bri", Source = "Output", },
+						Type = Input { Value = 0, },
+						Length = Input { Expression = "Ctl.MotionBlur*Ctl.Env*0.1", },
+						Angle = Input { Value = 0.0, },
+					},
+					ViewInfo = OperatorInfo { Pos = { 330, 0 } },
+				},
+				Ctl = Background {
+					CtrlWZoom = false,
+					Inputs = {
+						Width = Input { Value = 1920, },
+						Height = Input { Value = 1080, },
+						UseFrameFormatSettings = Input { Value = 1, },
+						Active = Input { Expression = "iif((time-comp.RenderStart) < self.Length, 1, 0)", },
+						Env = Input { Expression = "iif((time-comp.RenderStart) < self.Length, self.Intensity*self.Strength*iif(self.Curve==1, (1-(time-comp.RenderStart)/self.Length)^4, iif(self.Curve==2, (1-(time-comp.RenderStart)/self.Length)*(1-(time-comp.RenderStart)/self.Length)*(3-2*(1-(time-comp.RenderStart)/self.Length)), iif(self.Curve==3, (1-(time-comp.RenderStart)/self.Length), (1-(time-comp.RenderStart)/self.Length)^2))), 0)", },
+						Length = Input { Value = 6, },
+						Amount = Input { Value = 1.0, },
+						Strength = Input { Value = 1.0, },
+						Curve = Input { Value = 1, },
+						Seed = Input { Value = 1, },
+						MotionBlur = Input { Value = 0.0, },
+						Brightness = Input { Value = 0.0, },
+						Intensity = Input { Value = 1.0, },
+					},
+				UserControls = ordered() {
+					Length = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 6, INP_MinScale = 1, INP_MaxScale = 30, INP_Integer = true, LINKS_Name = "Length (frames)", ICS_ControlPage = "Controls" },
+					Amount = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1.0, INP_MinScale = 0.0, INP_MaxScale = 3.0, INP_Integer = false, LINKS_Name = "Amount", ICS_ControlPage = "Controls" },
+					Strength = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1.0, INP_MinScale = 0.0, INP_MaxScale = 3.0, INP_Integer = false, LINKS_Name = "Strength", ICS_ControlPage = "Controls" },
+					Curve = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1, INP_MinScale = 0, INP_MaxScale = 3, INP_Integer = true, LINKS_Name = "Curve (0 Smooth, 1 Sharp, 2 S, 3 Linear)", ICS_ControlPage = "Controls" },
+					Seed = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1, INP_MinScale = 0, INP_MaxScale = 999, INP_Integer = true, LINKS_Name = "Random Seed (0 = fixed)", ICS_ControlPage = "Controls" },
+					MotionBlur = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0.0, INP_MinScale = 0.0, INP_MaxScale = 2.0, INP_Integer = false, LINKS_Name = "Motion Blur", ICS_ControlPage = "Controls" },
+					Brightness = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0.0, INP_MinScale = -1.0, INP_MaxScale = 2.0, INP_Integer = false, LINKS_Name = "Brightness", ICS_ControlPage = "Controls" },
+					Intensity = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 1.0, INP_MinScale = 0.0, INP_MaxScale = 2.0, INP_Integer = false, LINKS_Name = "Intensity", ICS_ControlPage = "Controls" },
+					Active = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Active", ICS_ControlPage = "Controls", IC_Visible = false },
+					Env = { LINKID_DataType = "Number", INPID_InputControl = "SliderControl", INP_Default = 0, INP_MinScale = 0, INP_MaxScale = 2, INP_Integer = false, LINKS_Name = "Env", ICS_ControlPage = "Controls", IC_Visible = false },
+				},
+					ViewInfo = OperatorInfo { Pos = { 440, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "KMV_Defocus_Post"
+}
